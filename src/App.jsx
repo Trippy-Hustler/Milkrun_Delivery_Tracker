@@ -8,7 +8,10 @@ import BulkActionBar from './components/BulkActionBar';
 import ShipmentRow from './components/ShipmentRow';
 import DetailView from './components/DetailView';
 
+const DRIVERS = ['Nagesh', 'Sushil'];
+
 export default function App() {
+  const [driver, setDriver] = useState(null);
   const [shipments, setShipments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(new Set());
@@ -19,6 +22,16 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('snitch_driver');
+    if (saved && DRIVERS.includes(saved)) setDriver(saved);
+  }, []);
+
+  const selectDriver = (name) => {
+    localStorage.setItem('snitch_driver', name);
+    setDriver(name);
+  };
 
   const showToast = useCallback((msg, type = 'success') => setToast({ message: msg, type }), []);
 
@@ -37,7 +50,7 @@ export default function App() {
     setRefreshing(false);
   }, [showToast]);
 
-  useEffect(() => { loadShipments(); }, [loadShipments]);
+  useEffect(() => { if (driver) loadShipments(); }, [driver, loadShipments]);
 
   const handleUpdate = useCallback(async (shipmentsToUpdate, newStatus) => {
     setUpdating(true);
@@ -111,6 +124,49 @@ export default function App() {
   const pendingCount = shipments.filter(s => s.status !== 'Delivered').length;
   const deliveredCount = counts['Delivered'] || 0;
 
+  // Driver selection
+  if (!driver) {
+    return (
+      <div style={{
+        minHeight: '100vh', background: '#faf9f7',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+        padding: 24,
+      }}>
+        <img src="/snitch-logo.png" alt="Snitch" style={{ width: 56, height: 56, marginBottom: 12 }} />
+        <h1 style={{ fontSize: 20, fontWeight: 800, color: '#111827', marginBottom: 4 }}>
+          Snitch Self Delivery
+        </h1>
+        <p style={{ fontSize: 13, color: '#9ca3af', marginBottom: 32 }}>Select your profile to continue</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%', maxWidth: 280 }}>
+          {DRIVERS.map(name => (
+            <button
+              key={name}
+              onClick={() => selectDriver(name)}
+              style={{
+                padding: '16px 20px', borderRadius: 14, border: '1.5px solid #e5e7eb',
+                background: '#fff', cursor: 'pointer', transition: 'all 0.15s',
+                display: 'flex', alignItems: 'center', gap: 14,
+              }}
+            >
+              <div style={{
+                width: 44, height: 44, borderRadius: 12, background: '#d97706',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 18, fontWeight: 800, color: '#fff', flexShrink: 0,
+              }}>
+                {name[0]}
+              </div>
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>{name}</div>
+                <div style={{ fontSize: 11, color: '#9ca3af' }}>Driver</div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   // Detail view
   if (detail) {
     const live = shipments.find(s => s.id === detail.id) || detail;
@@ -155,7 +211,7 @@ export default function App() {
             <img src="/snitch-logo.png" alt="Snitch" style={{ width: 32, height: 32, borderRadius: 6 }} />
             <div>
               <h1 style={{ fontSize: 15, fontWeight: 700, color: '#111827', letterSpacing: '-0.01em' }}>
-                Snitch Self Delivery
+                {driver}
               </h1>
               <p style={{ fontSize: 10, color: '#9ca3af' }}>
                 {new Date().toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}
@@ -163,6 +219,12 @@ export default function App() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
+            <button onClick={() => { localStorage.removeItem('snitch_driver'); setDriver(null); }} style={{
+              width: 34, height: 34, borderRadius: 9, background: '#fff',
+              border: '1.5px solid #e5e7eb', color: '#9ca3af', cursor: 'pointer', fontSize: 12,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontWeight: 700,
+            }}>{DRIVERS.find(d => d !== driver)?.[0]}</button>
             <button onClick={selectAllInFilter} style={{
               width: 34, height: 34, borderRadius: 9,
               background: selectionMode ? '#dbeafe' : '#fff',
