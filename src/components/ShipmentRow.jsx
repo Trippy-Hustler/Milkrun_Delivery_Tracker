@@ -51,7 +51,7 @@ export default function ShipmentRow({ shipment, isSelected, onToggle, onSelect, 
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: '#6b7280' }}>
-          <span style={{ fontFamily: 'monospace', fontWeight: 600, color: '#374151' }}>{shipment.awb}</span>
+          <span style={{ fontFamily: 'monospace', fontWeight: 600, color: '#374151' }}>{shipment.custRef || shipment.awb}</span>
           <span>📦 {shipment.boxCount}</span>
           <span>⚖ {shipment.weight}</span>
         </div>
