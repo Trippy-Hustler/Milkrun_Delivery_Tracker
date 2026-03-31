@@ -39,8 +39,9 @@ export default function ShipmentRow({ shipment, isSelected, onToggle, onSelect, 
           <div style={{
             fontSize: 14, fontWeight: 700, color: '#111827',
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            fontFamily: 'monospace',
           }}>
-            {shipment.customer}
+            {shipment.custRef || shipment.awb}
           </div>
           <span style={{
             fontSize: 10, fontWeight: 600, color: status.color,
@@ -51,7 +52,7 @@ export default function ShipmentRow({ shipment, isSelected, onToggle, onSelect, 
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: '#6b7280' }}>
-          <span style={{ fontFamily: 'monospace', fontWeight: 600, color: '#374151' }}>{shipment.custRef || shipment.awb}</span>
+          <span style={{ fontWeight: 600, color: '#374151' }}>{shipment.customer}</span>
           <span>📦 {shipment.boxCount}</span>
           <span>⚖ {shipment.weight}</span>
         </div>

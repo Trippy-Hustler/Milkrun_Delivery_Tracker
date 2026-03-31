@@ -22,10 +22,24 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const [driverMap, setDriverMap] = useState({});
 
   useEffect(() => {
     const saved = localStorage.getItem('snitch_driver');
     if (saved && DRIVERS.includes(saved)) setDriver(saved);
+    try {
+      const map = JSON.parse(localStorage.getItem('snitch_driver_map') || '{}');
+      setDriverMap(map);
+    } catch { setDriverMap({}); }
+  }, []);
+
+  const assignDriver = useCallback((ids, driverName) => {
+    setDriverMap(prev => {
+      const next = { ...prev };
+      ids.forEach(id => { next[id] = driverName; });
+      localStorage.setItem('snitch_driver_map', JSON.stringify(next));
+      return next;
+    });
   }, []);
 
   const selectDriver = (name) => {
@@ -67,6 +81,7 @@ export default function App() {
       const ids = new Set(shipmentsToUpdate.map(s => s.id));
       setShipments(prev => prev.map(s => ids.has(s.id) ? { ...s, status: newStatus } : s));
       if (detail && ids.has(detail.id)) setDetail(prev => prev ? { ...prev, status: newStatus } : null);
+      assignDriver([...ids], driver);
       setSelected(new Set());
       const label = STATUS_MAP[newStatus]?.label || newStatus;
       showToast(shipmentsToUpdate.length === 1
@@ -76,7 +91,7 @@ export default function App() {
       showToast(result.error || 'Update failed', 'error');
     }
     setUpdating(false);
-  }, [detail, showToast]);
+  }, [detail, showToast, assignDriver, driver]);
 
   const handleException = useCallback(async (shipment) => {
     setUpdating(true);
@@ -84,12 +99,13 @@ export default function App() {
     if (result.success) {
       setShipments(prev => prev.map(s => s.id === shipment.id ? { ...s, status: 'Exception' } : s));
       if (detail?.id === shipment.id) setDetail(prev => prev ? { ...prev, status: 'Exception' } : null);
+      assignDriver([shipment.id], driver);
       showToast(`${shipment.awb} → Exception reported`);
     } else {
       showToast('Failed to report exception', 'error');
     }
     setUpdating(false);
-  }, [detail, showToast]);
+  }, [detail, showToast, assignDriver, driver]);
 
   const toggleSelect = useCallback((id) => {
     setSelected(prev => {
@@ -115,7 +131,10 @@ export default function App() {
       s.awb?.toLowerCase().includes(search.toLowerCase()) ||
       s.customer?.toLowerCase().includes(search.toLowerCase()) ||
       s.custRef?.toLowerCase().includes(search.toLowerCase());
-    return mf && ms;
+    // InfoReceived + All show everything; other tabs only show this driver's shipments
+    const isDriverScoped = s.status !== 'InfoReceived' && driverMap[s.id] && driverMap[s.id] !== driver;
+    const md = filter === 'All' || filter === 'InfoReceived' ? true : !isDriverScoped;
+    return mf && ms && md;
   });
 
   const counts = { All: shipments.length };
