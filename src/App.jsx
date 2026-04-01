@@ -55,6 +55,19 @@ export default function App() {
     const result = await fetchShipments();
     if (result.success) {
       setShipments(result.data);
+      // Seed driverMap from API response (server-side driver assignments)
+      setDriverMap(prev => {
+        const next = { ...prev };
+        let changed = false;
+        result.data.forEach(s => {
+          if (s.driver && s.driver !== next[s.id]) {
+            next[s.id] = s.driver;
+            changed = true;
+          }
+        });
+        if (changed) localStorage.setItem('snitch_driver_map', JSON.stringify(next));
+        return changed ? next : prev;
+      });
       if (showRefreshToast) showToast(`${result.data.length} shipments loaded`, 'info');
     } else {
       setError(result.error);
@@ -71,10 +84,10 @@ export default function App() {
     let result;
     if (shipmentsToUpdate.length === 1) {
       const s = shipmentsToUpdate[0];
-      result = await updateStatus(s.id, newStatus, s.weight);
+      result = await updateStatus(s.id, newStatus, s.weight, driver);
     } else {
       result = await bulkUpdateStatus(
-        shipmentsToUpdate.map(s => ({ order_id: s.id, status: newStatus, weight: s.weight }))
+        shipmentsToUpdate.map(s => ({ order_id: s.id, status: newStatus, weight: s.weight, driver }))
       );
     }
     if (result.success) {
@@ -95,7 +108,7 @@ export default function App() {
 
   const handleException = useCallback(async (shipment) => {
     setUpdating(true);
-    const result = await updateStatus(shipment.id, 'Exception', shipment.weight);
+    const result = await updateStatus(shipment.id, 'Exception', shipment.weight, driver);
     if (result.success) {
       setShipments(prev => prev.map(s => s.id === shipment.id ? { ...s, status: 'Exception' } : s));
       if (detail?.id === shipment.id) setDetail(prev => prev ? { ...prev, status: 'Exception' } : null);
