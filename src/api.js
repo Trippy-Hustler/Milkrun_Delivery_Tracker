@@ -14,12 +14,12 @@ export async function fetchShipments() {
   }
 }
 
-export async function updateStatus(orderId, status, weight, driver) {
+export async function updateStatus(orderId, status, weight, message) {
   try {
     const res = await fetch(`${BASE_URL}${UPDATE_PATH}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ order_id: orderId, status, weight, driver }),
+      body: JSON.stringify({ order_id: orderId, status, weight, message }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();

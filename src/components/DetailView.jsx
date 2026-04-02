@@ -5,6 +5,8 @@ export default function DetailView({ shipment, onBack, onUpdate, onException, up
   const next = getNextStatus(shipment.status);
   const currentIdx = getStatusIndex(shipment.status);
   const isException = shipment.status === 'Exception';
+  const driverMatch = (shipment.lastMessage || '').match(/^Driver:\s*(.+)$/i);
+  const updatedBy = driverMatch ? driverMatch[1].trim() : null;
 
   return (
     <div style={{ minHeight: '100vh', background: '#faf9f7' }}>
@@ -64,6 +66,22 @@ export default function DetailView({ shipment, onBack, onUpdate, onException, up
             display: 'flex', alignItems: 'center', gap: 6,
           }}>
             🕐 Created: {shipment.dateFormatted}
+          </div>
+        )}
+
+        {/* Updated by driver */}
+        {updatedBy && (
+          <div style={{
+            background: '#fff', borderRadius: 10, padding: '10px 14px',
+            border: '1.5px solid #e5e7eb', fontSize: 12, color: '#6b7280',
+            display: 'flex', alignItems: 'center', gap: 6,
+          }}>
+            <span style={{
+              width: 22, height: 22, borderRadius: 6, background: '#d97706',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 10, fontWeight: 800, color: '#fff', flexShrink: 0,
+            }}>{updatedBy[0]}</span>
+            <span>Last updated by <strong style={{ color: '#374151' }}>{updatedBy}</strong></span>
           </div>
         )}
 

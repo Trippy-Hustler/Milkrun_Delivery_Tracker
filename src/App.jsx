@@ -22,24 +22,10 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
-  const [driverMap, setDriverMap] = useState({});
 
   useEffect(() => {
     const saved = localStorage.getItem('snitch_driver');
     if (saved && DRIVERS.includes(saved)) setDriver(saved);
-    try {
-      const map = JSON.parse(localStorage.getItem('snitch_driver_map') || '{}');
-      setDriverMap(map);
-    } catch { setDriverMap({}); }
-  }, []);
-
-  const assignDriver = useCallback((ids, driverName) => {
-    setDriverMap(prev => {
-      const next = { ...prev };
-      ids.forEach(id => { next[id] = driverName; });
-      localStorage.setItem('snitch_driver_map', JSON.stringify(next));
-      return next;
-    });
   }, []);
 
   const selectDriver = (name) => {
@@ -55,19 +41,6 @@ export default function App() {
     const result = await fetchShipments();
     if (result.success) {
       setShipments(result.data);
-      // Seed driverMap from API response (server-side driver assignments)
-      setDriverMap(prev => {
-        const next = { ...prev };
-        let changed = false;
-        result.data.forEach(s => {
-          if (s.driver && s.driver !== next[s.id]) {
-            next[s.id] = s.driver;
-            changed = true;
-          }
-        });
-        if (changed) localStorage.setItem('snitch_driver_map', JSON.stringify(next));
-        return changed ? next : prev;
-      });
       if (showRefreshToast) showToast(`${result.data.length} shipments loaded`, 'info');
     } else {
       setError(result.error);
@@ -79,22 +52,23 @@ export default function App() {
 
   useEffect(() => { if (driver) loadShipments(); }, [driver, loadShipments]);
 
+  const driverMessage = `Driver: ${driver}`;
+
   const handleUpdate = useCallback(async (shipmentsToUpdate, newStatus) => {
     setUpdating(true);
     let result;
     if (shipmentsToUpdate.length === 1) {
       const s = shipmentsToUpdate[0];
-      result = await updateStatus(s.id, newStatus, s.weight, driver);
+      result = await updateStatus(s.id, newStatus, s.weight, driverMessage);
     } else {
       result = await bulkUpdateStatus(
-        shipmentsToUpdate.map(s => ({ order_id: s.id, status: newStatus, weight: s.weight, driver }))
+        shipmentsToUpdate.map(s => ({ order_id: s.id, status: newStatus, weight: s.weight, message: driverMessage }))
       );
     }
     if (result.success) {
       const ids = new Set(shipmentsToUpdate.map(s => s.id));
-      setShipments(prev => prev.map(s => ids.has(s.id) ? { ...s, status: newStatus } : s));
-      if (detail && ids.has(detail.id)) setDetail(prev => prev ? { ...prev, status: newStatus } : null);
-      assignDriver([...ids], driver);
+      setShipments(prev => prev.map(s => ids.has(s.id) ? { ...s, status: newStatus, lastMessage: driverMessage } : s));
+      if (detail && ids.has(detail.id)) setDetail(prev => prev ? { ...prev, status: newStatus, lastMessage: driverMessage } : null);
       setSelected(new Set());
       const label = STATUS_MAP[newStatus]?.label || newStatus;
       showToast(shipmentsToUpdate.length === 1
@@ -104,21 +78,20 @@ export default function App() {
       showToast(result.error || 'Update failed', 'error');
     }
     setUpdating(false);
-  }, [detail, showToast, assignDriver, driver]);
+  }, [detail, showToast, driverMessage]);
 
   const handleException = useCallback(async (shipment) => {
     setUpdating(true);
-    const result = await updateStatus(shipment.id, 'Exception', shipment.weight, driver);
+    const result = await updateStatus(shipment.id, 'Exception', shipment.weight, driverMessage);
     if (result.success) {
-      setShipments(prev => prev.map(s => s.id === shipment.id ? { ...s, status: 'Exception' } : s));
-      if (detail?.id === shipment.id) setDetail(prev => prev ? { ...prev, status: 'Exception' } : null);
-      assignDriver([shipment.id], driver);
+      setShipments(prev => prev.map(s => s.id === shipment.id ? { ...s, status: 'Exception', lastMessage: driverMessage } : s));
+      if (detail?.id === shipment.id) setDetail(prev => prev ? { ...prev, status: 'Exception', lastMessage: driverMessage } : null);
       showToast(`${shipment.awb} → Exception reported`);
     } else {
       showToast('Failed to report exception', 'error');
     }
     setUpdating(false);
-  }, [detail, showToast, assignDriver, driver]);
+  }, [detail, showToast, driverMessage]);
 
   const toggleSelect = useCallback((id) => {
     setSelected(prev => {
@@ -138,6 +111,13 @@ export default function App() {
     setSelected(allSelected ? new Set() : new Set(filtered.map(s => s.id)));
   }, [shipments, filter, search, selected]);
 
+  // Parse driver from lastMessage (format: "Driver: Nagesh")
+  const getShipmentDriver = (s) => {
+    const msg = s.lastMessage || '';
+    const match = msg.match(/^Driver:\s*(.+)$/i);
+    return match ? match[1].trim() : null;
+  };
+
   const filtered = shipments.filter(s => {
     const mf = filter === 'All' || s.status === filter;
     const ms = !search ||
@@ -145,15 +125,23 @@ export default function App() {
       s.customer?.toLowerCase().includes(search.toLowerCase()) ||
       s.custRef?.toLowerCase().includes(search.toLowerCase());
     // InfoReceived + All show everything; other tabs only show this driver's shipments
-    const isDriverScoped = s.status !== 'InfoReceived' && driverMap[s.id] && driverMap[s.id] !== driver;
-    const md = filter === 'All' || filter === 'InfoReceived' ? true : !isDriverScoped;
+    const shipmentDriver = getShipmentDriver(s);
+    const isOtherDriver = s.status !== 'InfoReceived' && shipmentDriver && shipmentDriver !== driver;
+    const md = filter === 'All' || filter === 'InfoReceived' ? true : !isOtherDriver;
     return mf && ms && md;
   });
 
-  const counts = { All: shipments.length };
-  STATUSES.forEach(s => { counts[s.key] = shipments.filter(sh => sh.status === s.key).length; });
-  counts['Exception'] = shipments.filter(s => s.status === 'Exception').length;
-  const pendingCount = shipments.filter(s => s.status !== 'Delivered').length;
+  // Helper: is this shipment visible for the current driver?
+  const isVisibleToDriver = (s) => {
+    const shipmentDriver = getShipmentDriver(s);
+    return !(s.status !== 'InfoReceived' && shipmentDriver && shipmentDriver !== driver);
+  };
+
+  const driverFiltered = shipments.filter(isVisibleToDriver);
+  const counts = { All: driverFiltered.length };
+  STATUSES.forEach(s => { counts[s.key] = driverFiltered.filter(sh => sh.status === s.key).length; });
+  counts['Exception'] = driverFiltered.filter(s => s.status === 'Exception').length;
+  const pendingCount = driverFiltered.filter(s => s.status !== 'Delivered').length;
   const deliveredCount = counts['Delivered'] || 0;
 
   // Driver selection
