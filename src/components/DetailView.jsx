@@ -1,4 +1,5 @@
 import { STATUSES, STATUS_MAP, getNextStatus, getStatusIndex, EXCEPTION_STATUS } from '../statuses';
+import { formatTime12h } from '../utils';
 
 export default function DetailView({ shipment, onBack, onUpdate, onException, updating }) {
   const status = STATUS_MAP[shipment.status] || STATUS_MAP['InfoReceived'];
@@ -65,7 +66,8 @@ export default function DetailView({ shipment, onBack, onUpdate, onException, up
             border: '1.5px solid #e5e7eb', fontSize: 12, color: '#6b7280',
             display: 'flex', alignItems: 'center', gap: 6,
           }}>
-            🕐 Created: {shipment.dateFormatted}
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Last updated: {formatTime12h(shipment.dateFormatted)}
           </div>
         )}
 
