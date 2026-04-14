@@ -134,8 +134,8 @@ export default function App() {
 
   // Extract route code from AWB (e.g. "2627/94/QST-43" → "94")
   const getRouteCode = (s) => {
-    const awb = s.awb || s.custRef || '';
-    return awb.split('/')[1] || null;
+    const ref = s.custRef || s.awb || '';
+    return ref.split('/')[1] || null;
   };
 
   // Is this shipment in the current driver's route?
