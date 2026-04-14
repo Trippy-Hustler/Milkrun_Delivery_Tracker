@@ -8,7 +8,21 @@ import BulkActionBar from './components/BulkActionBar';
 import ShipmentRow from './components/ShipmentRow';
 import DetailView from './components/DetailView';
 
-const DRIVERS = ['Nagesh', 'Sushil'];
+const DRIVERS = ['Nagesh', 'Sushil', 'Chandan'];
+
+// Route codes each driver is allowed to see (middle segment of AWB e.g. 2627/8/ST-1)
+const DRIVER_ROUTES = {
+  Nagesh:  ['2', '8'],
+  Sushil:  ['2', '8'],
+  Chandan: ['94'],
+};
+
+// Avatar colours per driver
+const DRIVER_COLORS = {
+  Nagesh:  '#d97706',
+  Sushil:  '#d97706',
+  Chandan: '#0891b2',
+};
 
 export default function App() {
   const [driver, setDriver] = useState(null);
@@ -118,7 +132,22 @@ export default function App() {
     return match ? match[1].trim() : null;
   };
 
+  // Extract route code from AWB (e.g. "2627/94/QST-43" → "94")
+  const getRouteCode = (s) => {
+    const awb = s.awb || s.custRef || '';
+    return awb.split('/')[1] || null;
+  };
+
+  // Is this shipment in the current driver's route?
+  const isInRoute = (s) => {
+    const routes = DRIVER_ROUTES[driver];
+    if (!routes || routes.length === 0) return true;
+    const route = getRouteCode(s);
+    return routes.includes(route);
+  };
+
   const filtered = shipments.filter(s => {
+    if (!isInRoute(s)) return false;
     const mf = filter === 'All' || s.status === filter;
     const ms = !search ||
       s.awb?.toLowerCase().includes(search.toLowerCase()) ||
@@ -133,6 +162,7 @@ export default function App() {
 
   // Helper: is this shipment visible for the current driver?
   const isVisibleToDriver = (s) => {
+    if (!isInRoute(s)) return false;
     const shipmentDriver = getShipmentDriver(s);
     return !(s.status !== 'InfoReceived' && shipmentDriver && shipmentDriver !== driver);
   };
@@ -170,7 +200,7 @@ export default function App() {
               }}
             >
               <div style={{
-                width: 44, height: 44, borderRadius: 12, background: '#d97706',
+                width: 44, height: 44, borderRadius: 12, background: DRIVER_COLORS[name] || '#d97706',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 18, fontWeight: 800, color: '#fff', flexShrink: 0,
               }}>
