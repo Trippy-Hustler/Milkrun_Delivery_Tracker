@@ -116,7 +116,11 @@ export default function App() {
   }, []);
 
   const selectAllInFilter = useCallback(() => {
+    const routes = DRIVER_ROUTES[driver] || [];
     const filtered = shipments.filter(s => {
+      const ref = s.custRef || s.awb || '';
+      const route = ref.split('/')[1] || null;
+      if (routes.length > 0 && !routes.includes(route)) return false;
       const mf = filter === 'All' || s.status === filter;
       const ms = !search || s.awb?.toLowerCase().includes(search.toLowerCase()) || s.customer?.toLowerCase().includes(search.toLowerCase());
       return mf && ms && s.status !== 'Delivered';
