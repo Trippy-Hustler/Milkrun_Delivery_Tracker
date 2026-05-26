@@ -36,6 +36,9 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [showDateFilter, setShowDateFilter] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem('snitch_driver');
@@ -121,13 +124,20 @@ export default function App() {
       const ref = s.custRef || s.awb || '';
       const route = ref.split('/')[1] || null;
       if (routes.length > 0 && !routes.includes(route)) return false;
+      if (dateFrom || dateTo) {
+        if (s.date) {
+          const str = new Date(s.date).toISOString().split('T')[0];
+          if (dateFrom && str < dateFrom) return false;
+          if (dateTo && str > dateTo) return false;
+        }
+      }
       const mf = filter === 'All' || s.status === filter;
       const ms = !search || s.awb?.toLowerCase().includes(search.toLowerCase()) || s.customer?.toLowerCase().includes(search.toLowerCase());
       return mf && ms && s.status !== 'Delivered';
     });
     const allSelected = filtered.length > 0 && filtered.every(s => selected.has(s.id));
     setSelected(allSelected ? new Set() : new Set(filtered.map(s => s.id)));
-  }, [shipments, filter, search, selected]);
+  }, [shipments, filter, search, selected, dateFrom, dateTo]);
 
   // Parse driver from lastMessage (format: "Driver: Nagesh")
   const getShipmentDriver = (s) => {
@@ -142,6 +152,15 @@ export default function App() {
     return ref.split('/')[1] || null;
   };
 
+  const isInDateRange = (s) => {
+    if (!dateFrom && !dateTo) return true;
+    if (!s.date) return true;
+    const str = new Date(s.date).toISOString().split('T')[0];
+    if (dateFrom && str < dateFrom) return false;
+    if (dateTo && str > dateTo) return false;
+    return true;
+  };
+
   // Is this shipment in the current driver's route?
   const isInRoute = (s) => {
     const routes = DRIVER_ROUTES[driver];
@@ -152,6 +171,7 @@ export default function App() {
 
   const filtered = shipments.filter(s => {
     if (!isInRoute(s)) return false;
+    if (!isInDateRange(s)) return false;
     const mf = filter === 'All' || s.status === filter;
     const ms = !search ||
       s.awb?.toLowerCase().includes(search.toLowerCase()) ||
@@ -163,6 +183,31 @@ export default function App() {
     const md = filter === 'All' || filter === 'InfoReceived' ? true : !isOtherDriver;
     return mf && ms && md;
   });
+
+  const downloadCSV = useCallback(() => {
+    const headers = ['Pickup Date & Time', 'AWB', 'Invoice Number', 'Store Name', 'Box Count', 'Weight', 'Status', 'Delivered Date & Time'];
+    const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const rows = filtered.map(s => [
+      esc(s.dateFormatted),
+      esc(s.awb),
+      esc(s.custRef),
+      esc(s.customer),
+      s.boxCount ?? '',
+      esc(s.weight),
+      esc(s.status),
+      esc(s.status === 'Delivered' ? s.lastUpdatedAt : ''),
+    ].join(','));
+    const csv = [headers.map(esc).join(','), ...rows].join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `shipments-${driver}-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [filtered, driver]);
 
   // Helper: is this shipment visible for the current driver?
   const isVisibleToDriver = (s) => {
@@ -287,6 +332,19 @@ export default function App() {
               cursor: 'pointer', fontSize: 14,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>☑</button>
+            <button onClick={() => setShowDateFilter(v => !v)} style={{
+              width: 34, height: 34, borderRadius: 9,
+              background: (showDateFilter || dateFrom || dateTo) ? '#ede9fe' : '#fff',
+              border: (showDateFilter || dateFrom || dateTo) ? '1.5px solid #7c3aed' : '1.5px solid #e5e7eb',
+              color: (showDateFilter || dateFrom || dateTo) ? '#7c3aed' : '#9ca3af',
+              cursor: 'pointer', fontSize: 14,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>📅</button>
+            <button onClick={downloadCSV} title="Download CSV" style={{
+              width: 34, height: 34, borderRadius: 9, background: '#fff',
+              border: '1.5px solid #e5e7eb', color: '#9ca3af', cursor: 'pointer', fontSize: 15,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>⬇</button>
             <button
               onClick={() => loadShipments(true)}
               disabled={refreshing}
@@ -330,6 +388,43 @@ export default function App() {
             }}
           />
         </div>
+
+        {/* Date range filter */}
+        {showDateFilter && (
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 10 }}>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={e => setDateFrom(e.target.value)}
+              style={{
+                flex: 1, padding: '7px 10px', borderRadius: 9,
+                border: '1.5px solid #e5e7eb', background: '#fff',
+                color: '#111827', fontSize: 12, outline: 'none',
+              }}
+            />
+            <span style={{ color: '#9ca3af', fontSize: 11, flexShrink: 0 }}>to</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={e => setDateTo(e.target.value)}
+              style={{
+                flex: 1, padding: '7px 10px', borderRadius: 9,
+                border: '1.5px solid #e5e7eb', background: '#fff',
+                color: '#111827', fontSize: 12, outline: 'none',
+              }}
+            />
+            {(dateFrom || dateTo) && (
+              <button
+                onClick={() => { setDateFrom(''); setDateTo(''); }}
+                style={{
+                  padding: '7px 10px', borderRadius: 9, border: '1.5px solid #fecaca',
+                  background: '#fee2e2', color: '#dc2626', fontSize: 11, cursor: 'pointer',
+                  flexShrink: 0, fontWeight: 600,
+                }}
+              >Clear</button>
+            )}
+          </div>
+        )}
 
         {/* Filter tabs */}
         <div style={{ display: 'flex', gap: 3, overflowX: 'auto', scrollbarWidth: 'none' }}>
