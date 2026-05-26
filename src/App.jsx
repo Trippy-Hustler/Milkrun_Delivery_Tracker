@@ -38,7 +38,7 @@ export default function App() {
   const [error, setError] = useState(null);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [showDateFilter, setShowDateFilter] = useState(false);
+  const [showMore, setShowMore] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem('snitch_driver');
@@ -318,12 +318,17 @@ export default function App() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={() => { localStorage.removeItem('snitch_driver'); setDriver(null); }} style={{
+            <button onClick={() => { localStorage.removeItem('snitch_driver'); setDriver(null); }} title="Switch driver" style={{
               width: 34, height: 34, borderRadius: 9, background: '#fff',
-              border: '1.5px solid #e5e7eb', color: '#9ca3af', cursor: 'pointer', fontSize: 12,
+              border: '1.5px solid #e5e7eb', color: '#9ca3af', cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontWeight: 700,
-            }}>{DRIVERS.find(d => d !== driver)?.[0]}</button>
+            }}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                <polyline points="16 17 21 12 16 7"/>
+                <line x1="21" y1="12" x2="9" y2="12"/>
+              </svg>
+            </button>
             <button onClick={selectAllInFilter} style={{
               width: 34, height: 34, borderRadius: 9,
               background: selectionMode ? '#dbeafe' : '#fff',
@@ -332,19 +337,15 @@ export default function App() {
               cursor: 'pointer', fontSize: 14,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>☑</button>
-            <button onClick={() => setShowDateFilter(v => !v)} style={{
+            <button onClick={() => setShowMore(v => !v)} title="Filters & Export" style={{
               width: 34, height: 34, borderRadius: 9,
-              background: (showDateFilter || dateFrom || dateTo) ? '#ede9fe' : '#fff',
-              border: (showDateFilter || dateFrom || dateTo) ? '1.5px solid #7c3aed' : '1.5px solid #e5e7eb',
-              color: (showDateFilter || dateFrom || dateTo) ? '#7c3aed' : '#9ca3af',
-              cursor: 'pointer', fontSize: 14,
+              background: (showMore || dateFrom || dateTo) ? '#f3f4f6' : '#fff',
+              border: (dateFrom || dateTo) ? '1.5px solid #7c3aed' : '1.5px solid #e5e7eb',
+              color: (dateFrom || dateTo) ? '#7c3aed' : '#6b7280',
+              cursor: 'pointer', fontSize: 18, fontWeight: 700,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>📅</button>
-            <button onClick={downloadCSV} title="Download CSV" style={{
-              width: 34, height: 34, borderRadius: 9, background: '#fff',
-              border: '1.5px solid #e5e7eb', color: '#9ca3af', cursor: 'pointer', fontSize: 15,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>⬇</button>
+              letterSpacing: '-2px', paddingRight: 2,
+            }}>···</button>
             <button
               onClick={() => loadShipments(true)}
               disabled={refreshing}
@@ -389,40 +390,65 @@ export default function App() {
           />
         </div>
 
-        {/* Date range filter */}
-        {showDateFilter && (
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 10 }}>
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={e => setDateFrom(e.target.value)}
-              style={{
-                flex: 1, padding: '7px 10px', borderRadius: 9,
-                border: '1.5px solid #e5e7eb', background: '#fff',
-                color: '#111827', fontSize: 12, outline: 'none',
-              }}
-            />
-            <span style={{ color: '#9ca3af', fontSize: 11, flexShrink: 0 }}>to</span>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={e => setDateTo(e.target.value)}
-              style={{
-                flex: 1, padding: '7px 10px', borderRadius: 9,
-                border: '1.5px solid #e5e7eb', background: '#fff',
-                color: '#111827', fontSize: 12, outline: 'none',
-              }}
-            />
-            {(dateFrom || dateTo) && (
-              <button
-                onClick={() => { setDateFrom(''); setDateTo(''); }}
+        {/* More panel: date filter + export */}
+        {showMore && (
+          <div style={{
+            marginBottom: 10, background: '#fff', borderRadius: 12,
+            border: '1.5px solid #e5e7eb', padding: '12px 14px',
+            display: 'flex', flexDirection: 'column', gap: 10,
+          }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: -2 }}>Date range</div>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={e => setDateFrom(e.target.value)}
                 style={{
-                  padding: '7px 10px', borderRadius: 9, border: '1.5px solid #fecaca',
-                  background: '#fee2e2', color: '#dc2626', fontSize: 11, cursor: 'pointer',
-                  flexShrink: 0, fontWeight: 600,
+                  flex: 1, padding: '8px 10px', borderRadius: 9,
+                  border: '1.5px solid #e5e7eb', background: '#faf9f7',
+                  color: dateFrom ? '#111827' : '#9ca3af', fontSize: 12, outline: 'none',
+                  fontFamily: 'inherit',
                 }}
-              >Clear</button>
-            )}
+              />
+              <span style={{ color: '#9ca3af', fontSize: 11, flexShrink: 0 }}>to</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={e => setDateTo(e.target.value)}
+                style={{
+                  flex: 1, padding: '8px 10px', borderRadius: 9,
+                  border: '1.5px solid #e5e7eb', background: '#faf9f7',
+                  color: dateTo ? '#111827' : '#9ca3af', fontSize: 12, outline: 'none',
+                  fontFamily: 'inherit',
+                }}
+              />
+              {(dateFrom || dateTo) && (
+                <button
+                  onClick={() => { setDateFrom(''); setDateTo(''); }}
+                  style={{
+                    padding: '8px 10px', borderRadius: 9, border: '1.5px solid #fecaca',
+                    background: '#fee2e2', color: '#dc2626', fontSize: 11,
+                    cursor: 'pointer', flexShrink: 0, fontWeight: 600,
+                  }}
+                >Clear</button>
+              )}
+            </div>
+            <button
+              onClick={() => { downloadCSV(); setShowMore(false); }}
+              style={{
+                width: '100%', padding: '10px 14px', borderRadius: 9,
+                background: '#111827', color: '#fff', border: 'none',
+                fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Download CSV · {filtered.length} shipments
+            </button>
           </div>
         )}
 
