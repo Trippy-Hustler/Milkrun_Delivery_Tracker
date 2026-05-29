@@ -1,7 +1,7 @@
 import { STATUSES, STATUS_MAP, getNextStatus, getStatusIndex, EXCEPTION_STATUS } from '../statuses';
 import { formatTime12h } from '../utils';
 
-export default function DetailView({ shipment, onBack, onUpdate, onException, updating }) {
+export default function DetailView({ shipment, onBack, onUpdate, onException, updating, readOnly }) {
   const status = STATUS_MAP[shipment.status] || STATUS_MAP['InfoReceived'];
   const next = getNextStatus(shipment.status);
   const currentIdx = getStatusIndex(shipment.status);
@@ -172,8 +172,8 @@ export default function DetailView({ shipment, onBack, onUpdate, onException, up
           })}
         </div>
 
-        {/* Actions */}
-        {next ? (
+        {/* Actions — hidden for Admin */}
+        {!readOnly && (next ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
             <button
               onClick={() => onUpdate([shipment], next.key)}
@@ -208,7 +208,7 @@ export default function DetailView({ shipment, onBack, onUpdate, onException, up
           }}>
             ✓ Delivered
           </div>
-        )}
+        ))}
       </div>
     </div>
   );

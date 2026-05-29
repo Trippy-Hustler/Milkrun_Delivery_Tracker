@@ -8,13 +8,14 @@ import BulkActionBar from './components/BulkActionBar';
 import ShipmentRow from './components/ShipmentRow';
 import DetailView from './components/DetailView';
 
-const DRIVERS = ['Nagesh', 'Sushil', 'Chandan'];
+const DRIVERS = ['Nagesh', 'Sushil', 'Chandan', 'Admin'];
 
 // Route codes each driver is allowed to see (middle segment of AWB e.g. 2627/8/ST-1)
 const DRIVER_ROUTES = {
   Nagesh:  ['2', '8'],
   Sushil:  ['2', '8'],
   Chandan: ['94'],
+  Admin:   [], // empty = sees all routes
 };
 
 // Avatar colours per driver
@@ -22,6 +23,7 @@ const DRIVER_COLORS = {
   Nagesh:  '#d97706',
   Sushil:  '#d97706',
   Chandan: '#0891b2',
+  Admin:   '#4f46e5',
 };
 
 export default function App() {
@@ -170,14 +172,15 @@ export default function App() {
   };
 
   const filtered = shipments.filter(s => {
-    if (!isInRoute(s)) return false;
+    if (driver !== 'Admin' && !isInRoute(s)) return false;
     if (!isInDateRange(s)) return false;
     const mf = filter === 'All' || s.status === filter;
     const ms = !search ||
       s.awb?.toLowerCase().includes(search.toLowerCase()) ||
       s.customer?.toLowerCase().includes(search.toLowerCase()) ||
       s.custRef?.toLowerCase().includes(search.toLowerCase());
-    // InfoReceived + All show everything; other tabs only show this driver's shipments
+    if (driver === 'Admin') return mf && ms;
+    // Non-admin: InfoReceived + All show everything; other tabs only show this driver's shipments
     const shipmentDriver = getShipmentDriver(s);
     const isOtherDriver = s.status !== 'InfoReceived' && shipmentDriver && shipmentDriver !== driver;
     const md = filter === 'All' || filter === 'InfoReceived' ? true : !isOtherDriver;
@@ -185,18 +188,27 @@ export default function App() {
   });
 
   const downloadCSV = useCallback(() => {
-    const headers = ['Pickup Date & Time', 'AWB', 'Invoice Number', 'Store Name', 'Box Count', 'Weight', 'Status', 'Delivered Date & Time'];
+    const isAdmin = driver === 'Admin';
+    const headers = [
+      'Pickup Date & Time', 'AWB', 'Invoice Number', 'Store Name',
+      'Box Count', 'Weight', 'Status', 'Delivered Date & Time',
+      ...(isAdmin ? ['Driver'] : []),
+    ];
     const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const rows = filtered.map(s => [
-      esc(s.dateFormatted),
-      esc(s.awb),
-      esc(s.custRef),
-      esc(s.customer),
-      s.boxCount ?? '',
-      esc(s.weight),
-      esc(s.status),
-      esc(s.status === 'Delivered' ? s.lastUpdatedAt : ''),
-    ].join(','));
+    const rows = filtered.map(s => {
+      const driverName = (s.lastMessage || '').match(/^Driver:\s*(.+)$/i)?.[1]?.trim() || '';
+      return [
+        esc(s.dateFormatted),
+        esc(s.awb),
+        esc(s.custRef),
+        esc(s.customer),
+        s.boxCount ?? '',
+        esc(s.weight),
+        esc(s.status),
+        esc(s.status === 'Delivered' ? s.lastUpdatedAt : ''),
+        ...(isAdmin ? [esc(driverName)] : []),
+      ].join(',');
+    });
     const csv = [headers.map(esc).join(','), ...rows].join('\n');
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -211,6 +223,7 @@ export default function App() {
 
   // Helper: is this shipment visible for the current driver?
   const isVisibleToDriver = (s) => {
+    if (driver === 'Admin') return true;
     if (!isInRoute(s)) return false;
     const shipmentDriver = getShipmentDriver(s);
     return !(s.status !== 'InfoReceived' && shipmentDriver && shipmentDriver !== driver);
@@ -238,7 +251,7 @@ export default function App() {
         </h1>
         <p style={{ fontSize: 13, color: '#9ca3af', marginBottom: 32 }}>Select your profile to continue</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%', maxWidth: 280 }}>
-          {DRIVERS.map(name => (
+          {DRIVERS.filter(n => n !== 'Admin').map(name => (
             <button
               key={name}
               onClick={() => selectDriver(name)}
@@ -261,6 +274,29 @@ export default function App() {
               </div>
             </button>
           ))}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0' }}>
+            <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
+            <span style={{ fontSize: 10, color: '#d1d5db', fontWeight: 600, letterSpacing: '0.05em' }}>ADMIN</span>
+            <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
+          </div>
+          <button
+            onClick={() => selectDriver('Admin')}
+            style={{
+              padding: '16px 20px', borderRadius: 14, border: '1.5px solid #e0e7ff',
+              background: '#f5f3ff', cursor: 'pointer', transition: 'all 0.15s',
+              display: 'flex', alignItems: 'center', gap: 14,
+            }}
+          >
+            <div style={{
+              width: 44, height: 44, borderRadius: 12, background: '#4f46e5',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 18, fontWeight: 800, color: '#fff', flexShrink: 0,
+            }}>A</div>
+            <div style={{ textAlign: 'left' }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>Admin</div>
+              <div style={{ fontSize: 11, color: '#818cf8' }}>View all · Read only</div>
+            </div>
+          </button>
         </div>
       </div>
     );
@@ -271,7 +307,7 @@ export default function App() {
     const live = shipments.find(s => s.id === detail.id) || detail;
     return (
       <>
-        <DetailView shipment={live} onBack={() => setDetail(null)} onUpdate={handleUpdate} onException={handleException} updating={updating} />
+        <DetailView shipment={live} onBack={() => setDetail(null)} onUpdate={handleUpdate} onException={handleException} updating={updating} readOnly={driver === 'Admin'} />
         {toast && <Toast {...toast} onDismiss={() => setToast(null)} />}
       </>
     );
@@ -329,14 +365,16 @@ export default function App() {
                 <line x1="21" y1="12" x2="9" y2="12"/>
               </svg>
             </button>
-            <button onClick={selectAllInFilter} style={{
-              width: 34, height: 34, borderRadius: 9,
-              background: selectionMode ? '#dbeafe' : '#fff',
-              border: selectionMode ? '1.5px solid #3b82f6' : '1.5px solid #e5e7eb',
-              color: selectionMode ? '#2563eb' : '#9ca3af',
-              cursor: 'pointer', fontSize: 14,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>☑</button>
+            {driver !== 'Admin' && (
+              <button onClick={selectAllInFilter} style={{
+                width: 34, height: 34, borderRadius: 9,
+                background: selectionMode ? '#dbeafe' : '#fff',
+                border: selectionMode ? '1.5px solid #3b82f6' : '1.5px solid #e5e7eb',
+                color: selectionMode ? '#2563eb' : '#9ca3af',
+                cursor: 'pointer', fontSize: 14,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>☑</button>
+            )}
             <button onClick={() => setShowMore(v => !v)} title="Filters & Export" style={{
               width: 34, height: 34, borderRadius: 9,
               background: (showMore || dateFrom || dateTo) ? '#f3f4f6' : '#fff',
@@ -512,12 +550,14 @@ export default function App() {
               onToggle={toggleSelect}
               onSelect={setDetail}
               selectionMode={selectionMode}
+              readOnly={driver === 'Admin'}
+              driverTag={driver === 'Admin' ? getShipmentDriver(s) : null}
             />
           ))
         )}
       </div>
 
-      {selectionMode && (
+      {selectionMode && driver !== 'Admin' && (
         <BulkActionBar
           selected={selected}
           shipments={shipments}
